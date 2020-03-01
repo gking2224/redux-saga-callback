@@ -7,27 +7,20 @@ const createPromiseFactory: CreatePromiseFactory = <T>(configureCallbacks: Callb
 
   let deferred: any;
 
-  const successFunction = (frame: T) => {
+  const callbackFunction = (frame: T) => {
     if (deferred) {
       deferred.resolve(frame);
       deferred = null;
     }
   }
-  const failureFunction = (frame: T) => {
-    if (deferred) {
-      deferred.reject(frame);
-      deferred = null;
-    }
-  };
 
-  configureCallbacks(successFunction, failureFunction);
+  configureCallbacks(callbackFunction);
 
   return {
     getPromise: function() {
       if (!deferred) {
         deferred = {}
-        deferred.promise = new Promise<T>((resolve, reject) => {
-          deferred.reject = reject;
+        deferred.promise = new Promise<T>((resolve) => {
           deferred.resolve = resolve;
         });
       }
@@ -117,6 +110,6 @@ export interface PromiseFactory<T> {
   getPromise: () => Promise<T>
 }
 
-export type CallbackConfigurer<T> = (successCallback: (r: T) => void, failureCallback: (e: T) => void) => void;
+export type CallbackConfigurer<S> = (successCallback: (r: S) => void) => void;
 
 export type CreatePromiseFactory = <T>(callbackConfigurer: CallbackConfigurer<T>) => PromiseFactory<T>;
