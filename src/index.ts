@@ -38,6 +38,7 @@ const createPromiseHandlingSaga = <T> (name: string, action: ActionCreator<T>, p
         yield put(action(payload));
         if (repeating) {
           payload = yield call(promiseFactory.getPromise)
+          console.log(`promise yielded for callback (${name})`);
         }
         else {
           payload = null;
