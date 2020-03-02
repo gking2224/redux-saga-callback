@@ -62,7 +62,7 @@ const callbackSaga = createCallbackReactingSaga('testCallback', callbackConfigur
 }, true, 'CANCEL_CALLBACK');
 
 function* testSaga() {
-  const task = yield fork(callbackSaga);
+  yield fork(callbackSaga);
 }
 ```
 
