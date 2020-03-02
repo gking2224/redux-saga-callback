@@ -1,4 +1,5 @@
 import { call, fork, take, put, race, cancel, cancelled } from 'redux-saga/effects';
+import { Task } from 'redux-saga';
 import { ActionFunction1, Action } from 'redux-actions';
 
 type ActionCreator<Payload> = ActionFunction1<Payload, Action<Payload>>;
@@ -29,13 +30,22 @@ const createPromiseFactory: CreatePromiseFactory = <T>(configureCallbacks: Callb
   }
 }
 
-const createPromiseHandlingSaga = <T> (name: string, action: ActionCreator<T>, promiseFactory: PromiseFactory<T>, repeating: boolean = true) => {
+type StringType = string;
+
+const createPromiseHandlingSaga = <T> (name: string, action: ActionCreator<T> | StringType, promiseFactory: PromiseFactory<T>, repeating: boolean = true) => {
   return function*() {
     let payload: T | null = yield call(promiseFactory.getPromise);
     console.log(`promise yielded for callback (${name})`);
     try {
       while (payload) {
-        yield put(action(payload));
+        if (typeof action === 'string') {
+          yield put({
+            type: action,
+            payload,
+          });
+        } else {
+          yield put(action(payload));
+        }
         if (repeating) {
           payload = yield call(promiseFactory.getPromise)
           console.log(`promise yielded for callback (${name})`);
@@ -54,19 +64,23 @@ const createPromiseHandlingSaga = <T> (name: string, action: ActionCreator<T>, p
   }
 }
 
-export const createCallbackSaga = <P> (name: string, cancelAction: string | null, callbackConfigurer: CallbackConfigurer<any>, action: ActionCreator<P>, repeating: boolean = true) => {
+export const createCallbackSaga = <P> (name: string, callbackConfigurer: CallbackConfigurer<any>, action: ActionCreator<P> | string, repeating: boolean = false, cancelAction?: string) => {
 
   const promiseFactory = createPromiseFactory(callbackConfigurer);
   const promiseHandlingSaga = createPromiseHandlingSaga(name, action, promiseFactory, repeating);
 
   return function*() {
     console.log(`forking callback saga (${name})`);
-    yield fork(promiseHandlingSaga);
+    const task: Task = yield fork(promiseHandlingSaga);
+    if (cancelAction) {
+      yield take(cancelAction);
+      yield cancel(task);
+    }
   }
 }
 
 export const createCallbackReactingSaga = <P> (
-  name: string, cancelAction: string, callbackConfigurer: CallbackConfigurer<any>, action: ActionCreator<P>, reactingSaga: any, repeating: boolean = true
+  name: string, callbackConfigurer: CallbackConfigurer<any>, action: ActionCreator<P> | string, reactingSaga: any, repeating: boolean = false, cancelAction?: string
 ) => {
   const promiseFactory = createPromiseFactory(callbackConfigurer);
   const promiseHandlingSaga = createPromiseHandlingSaga(name, action, promiseFactory, repeating);
@@ -74,29 +88,36 @@ export const createCallbackReactingSaga = <P> (
   return function*() {
     try {
       console.log(`forking callback reacting saga (${name})`);
-      const promiseTask = yield fork(promiseHandlingSaga);
+      const promiseTask: Task = yield fork(promiseHandlingSaga);
 
-      let forkedTask;
+      let forkedTask: Task | undefined;
       let cancelled = false;
 
       while (!cancelled) {
-        const { promise } = yield race({
-          promise: take(action),
-          cancellation: take(cancelAction),
-        });
-        if (promise) {
-          if (forkedTask) {
+        let promiseResult;
+        if (cancelAction) {
+          const { promise, cancellation } = yield race({
+            promise: take(action),
+            cancellation: take(cancelAction),
+          });
+          promiseResult = promise;
+        }
+        else {
+          promiseResult = yield take(action);
+        }
+        if (promiseResult) {
+          if (forkedTask && forkedTask.isRunning()) {
             yield cancel(forkedTask)
           }
-          forkedTask = yield fork(reactingSaga, promise.payload);
+          forkedTask = yield fork(reactingSaga, promiseResult.payload);
         } else {
-          if (forkedTask) {
+          if (forkedTask && forkedTask.isRunning()) {
             yield cancel(forkedTask)
           }
-          if (!repeating) {
-            yield cancel(promiseTask);
-            cancelled = true;
-          }
+          // if (!repeating) {
+          yield cancel(promiseTask);
+          cancelled = true;
+          // }
         }
       }
     } finally {
@@ -111,6 +132,6 @@ export interface PromiseFactory<T> {
   getPromise: () => Promise<T>
 }
 
-export type CallbackConfigurer<S> = (successCallback: (r: S) => void) => void;
+export type CallbackConfigurer<T> = (successCallback: (result: T) => void) => void;
 
 export type CreatePromiseFactory = <T>(callbackConfigurer: CallbackConfigurer<T>) => PromiseFactory<T>;
