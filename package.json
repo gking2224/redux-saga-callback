@@ -1,6 +1,6 @@
 {
   "name": "@animando/redux-saga-callback",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Turns a callback into a redux saga",
   "repository": "git@github.com:gking2224/redux-saga-callback.git",
   "main": "build/index.js",

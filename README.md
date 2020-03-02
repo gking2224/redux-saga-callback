@@ -69,4 +69,5 @@ function* testSaga() {
 ## Credits
 Inspiration for this library was taken from the following issues/posts:
 - https://github.com/redux-saga/redux-saga/issues/51
+- https://stackoverflow.com/questions/41076600/how-to-achieve-callbacks-in-redux-saga
 - https://stackoverflow.com/questions/34859932/can-i-use-redux-sagas-es6-generators-as-onmessage-listener-for-websockets-or-ev
